@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Row, EMPTY_ROW, SEED, suggestionsFor } from './types';
-import { fileToWebp, slugify, basename } from './lib';
+import { fileToWebp, parseArtworkFilename, slugify } from './lib';
 import {
   isFsaSupported, pickRoot, getStoredRoot, ensurePermission,
-  readCsv, writeCsv, writeImage, deleteImage, readImageUrl, readImageBlob
+  readCsv, writeCsv, writeImage, deleteImage, readImageUrl, readImageBlob, artworkImagePath
 } from './fs';
 
 type Toast = { kind: 'ok' | 'err'; msg: string } | null;
@@ -18,6 +18,7 @@ export default function App() {
   const [filterCat, setFilterCat] = useState('');
 
   const [editing, setEditing] = useState<Row>({ ...EMPTY_ROW });
+  const [defaults, setDefaults] = useState<Row>({ ...EMPTY_ROW });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
@@ -64,11 +65,10 @@ export default function App() {
   function showToast(kind: 'ok' | 'err', msg: string) { setToast({ kind, msg }); }
 
   async function thumbFor(imagePath: string): Promise<string> {
-    const name = basename(imagePath);
-    if (!name || !root) return '';
-    if (thumbCache.current.has(name)) return thumbCache.current.get(name)!;
-    const url = await readImageUrl(root, name);
-    if (url) thumbCache.current.set(name, url);
+    if (!imagePath || !root) return '';
+    if (thumbCache.current.has(imagePath)) return thumbCache.current.get(imagePath)!;
+    const url = await readImageUrl(root, imagePath);
+    if (url) thumbCache.current.set(imagePath, url);
     return url;
   }
 
@@ -83,16 +83,21 @@ export default function App() {
       const kb = (blob.size / 1024).toFixed(0);
       const bmp = await createImageBitmap(blob);
       setPreviewMeta(`${bmp.width} × ${bmp.height} · ${kb} KB · WebP`);
-      if (!editing.title) {
-        const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
-        setEditing(e => ({ ...e, title: titleCase(baseName) }));
-      }
+      const parsed = parseArtworkFilename(file.name);
+      setEditing(e => ({
+        ...e,
+        category: parsed.category ?? defaults.category,
+        medium: parsed.medium ?? defaults.medium,
+        size: parsed.size ?? defaults.size,
+        year: parsed.year ?? defaults.year,
+        status: parsed.status ?? defaults.status,
+        price: parsed.price ?? defaults.price,
+        featured: parsed.featured ?? defaults.featured,
+        visible: parsed.visible ?? defaults.visible,
+        title: parsed.title ?? e.title
+      }));
     } catch (e: any) { showToast('err', e.message); }
     finally { setBusy(false); }
-  }
-
-  function titleCase(s: string) {
-    return s.split(' ').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   }
 
   function onDrop(e: React.DragEvent) {
@@ -131,22 +136,26 @@ export default function App() {
     try {
       const slug = slugify(editing.title);
       const filename = `${slug}.webp`;
+      const nextImagePath = artworkImagePath(editing.category, filename);
       let imagePath = editing.image;
 
       if (pendingBlob) {
-        await writeImage(root, filename, pendingBlob);
-        imagePath = `/images/artwork/${filename}`;
+        await writeImage(root, nextImagePath, pendingBlob);
+        if (editingIndex !== null && rows[editingIndex].image && rows[editingIndex].image !== nextImagePath) {
+          await deleteImage(root, rows[editingIndex].image);
+        }
+        imagePath = nextImagePath;
       } else if (editingIndex === null) {
         return showToast('err', 'Drop an image to add a new entry');
       } else {
-        const oldName = basename(rows[editingIndex].image);
-        if (oldName && oldName !== filename) {
-          const oldBlob = await readImageBlob(root, oldName);
+        const oldPath = rows[editingIndex].image;
+        if (oldPath && oldPath !== nextImagePath) {
+          const oldBlob = await readImageBlob(root, oldPath);
           if (oldBlob) {
-            await writeImage(root, filename, oldBlob);
-            await deleteImage(root, oldName);
+            await writeImage(root, nextImagePath, oldBlob);
+            await deleteImage(root, oldPath);
           }
-          imagePath = `/images/artwork/${filename}`;
+          imagePath = nextImagePath;
         }
       }
 
@@ -157,7 +166,7 @@ export default function App() {
 
       await writeCsv(root, next);
       setRows(next);
-      thumbCache.current.delete(basename(imagePath));
+      thumbCache.current.delete(imagePath);
       showToast('ok', editingIndex === null ? 'Added' : 'Updated');
       clearForm();
     } catch (e: any) { showToast('err', e.message); }
@@ -169,12 +178,12 @@ export default function App() {
     if (!confirm(`Delete "${rows[idx].title}"? Image file will also be removed.`)) return;
     setBusy(true);
     try {
-      const name = basename(rows[idx].image);
+      const imagePath = rows[idx].image;
       const next = rows.filter((_, i) => i !== idx);
       await writeCsv(root, next);
-      if (name) await deleteImage(root, name);
+      if (imagePath) await deleteImage(root, imagePath);
       setRows(next);
-      thumbCache.current.delete(name);
+      thumbCache.current.delete(imagePath);
       if (editingIndex === idx) clearForm();
       showToast('ok', 'Deleted');
     } catch (e: any) { showToast('err', e.message); }
@@ -188,6 +197,11 @@ export default function App() {
   const sSize     = useMemo(() => suggestionsFor(rows, 'size'),  [rows]);
   const sYear     = useMemo(() => suggestionsFor(rows, 'year'),  [rows]);
   const sPrice    = useMemo(() => suggestionsFor(rows, 'price'), [rows]);
+
+  function useDefaultsForCurrent() {
+    setEditing(e => ({ ...e, ...defaults, title: e.title, image: e.image }));
+    showToast('ok', 'Defaults applied');
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -222,7 +236,8 @@ export default function App() {
           <p style={{ color: 'var(--muted)', lineHeight: 1.7, marginBottom: 28 }}>
             Select the <code>tommulliner.com</code> project root.<br />
             The app will read and write <code>public/data/artworks.csv</code> and
-            files in <code>public/images/artwork/</code>.
+            files in <code>public/images/artwork/portraits</code>,{' '}
+            <code>miniatures</code>, and <code>still-lifes</code>.
             Your choice is remembered.
           </p>
           <button onClick={pick}>Choose Folder</button>
@@ -259,6 +274,58 @@ export default function App() {
             onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
 
+          <div className="quick-panel">
+            <div className="quick-title">Quick import defaults</div>
+            <p>
+              Use these once for a batch, or name files like{' '}
+              <code>Arthur--portraits--charcoal--2019--sold--featured.jpg</code>.
+            </p>
+            <div className="field-row compact">
+              <div className="field">
+                <label>Category</label>
+                <input list="d-category" value={defaults.category}
+                  onChange={e => setDefaults({ ...defaults, category: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Status</label>
+                <input list="d-status" value={defaults.status}
+                  onChange={e => setDefaults({ ...defaults, status: e.target.value })} />
+              </div>
+            </div>
+            <div className="field">
+              <label>Medium</label>
+              <input list="d-medium" value={defaults.medium}
+                onChange={e => setDefaults({ ...defaults, medium: e.target.value })} />
+            </div>
+            <div className="field-row compact">
+              <div className="field">
+                <label>Size</label>
+                <input list="d-size" value={defaults.size}
+                  onChange={e => setDefaults({ ...defaults, size: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Year</label>
+                <input list="d-year" value={defaults.year}
+                  onChange={e => setDefaults({ ...defaults, year: e.target.value })} />
+              </div>
+            </div>
+            <div className="checks">
+              <label>
+                <input type="checkbox" checked={defaults.featured === 'TRUE'}
+                  onChange={e => setDefaults({ ...defaults, featured: e.target.checked ? 'TRUE' : 'FALSE' })} />
+                Featured
+              </label>
+              <label>
+                <input type="checkbox" checked={defaults.visible === 'TRUE'}
+                  onChange={e => setDefaults({ ...defaults, visible: e.target.checked ? 'TRUE' : 'FALSE' })} />
+                Visible
+              </label>
+            </div>
+            <button className="ghost wide" onClick={useDefaultsForCurrent} disabled={busy}>
+              Apply To Current
+            </button>
+          </div>
+
           {previewUrl && (
             <div className="preview">
               <img src={previewUrl} alt="" />
@@ -271,7 +338,7 @@ export default function App() {
             <input value={editing.title}
               onChange={e => setEditing({ ...editing, title: e.target.value })} />
             {editing.title && (
-              <div className="hint">→ /images/artwork/{slugify(editing.title)}.webp</div>
+              <div className="hint">→ {artworkImagePath(editing.category, `${slugify(editing.title)}.webp`)}</div>
             )}
           </div>
 

@@ -10,7 +10,9 @@ Installable PWA for managing artworks in `tommulliner.com`. Drag-drop images, ed
 On first launch the app asks you to pick the `tommulliner.com` project root once. The browser remembers the handle. After that, the app reads/writes:
 
 - `public/data/artworks.csv`
-- `public/images/artwork/<slug>.webp`
+- `public/images/artwork/portraits/<slug>.webp`
+- `public/images/artwork/miniatures/<slug>.webp`
+- `public/images/artwork/still-lifes/<slug>.webp`
 
 …directly via the File System Access API. Nothing leaves your machine.
 
@@ -18,6 +20,9 @@ On first launch the app asks you to pick the `tommulliner.com` project root once
 
 - Drag-and-drop → auto WebP conversion (Canvas, max 2000px wide, q=0.85)
 - Slug-based filenames derived from the title
+- Images are saved into the folder derived from the artwork category
+- Quick import defaults for category, medium, status, size, year, featured, and visible
+- Smart filename parsing, for example `Arthur--portraits--charcoal--2019--sold--featured.jpg`
 - Edit / delete existing rows; image file is renamed when title changes
 - Datalist suggestions on every text field, populated from previous CSV entries
 - Required: title, category, medium, status, featured, visible. Year defaults to current; size/price optional

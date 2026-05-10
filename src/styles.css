@@ -47,6 +47,41 @@ body {
 .dropzone p { margin: 6px 0; color: var(--muted); }
 .dropzone strong { color: var(--gold-soft); display: block; font-size: 16px; margin-bottom: 6px; }
 
+.quick-panel {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--panel), #111216);
+}
+.quick-title {
+  color: var(--gold-soft);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+.quick-panel p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.quick-panel code {
+  color: var(--gold-soft);
+  font-size: 11px;
+}
+.quick-panel .field {
+  margin-top: 10px;
+}
+.field-row.compact {
+  gap: 10px;
+}
+button.wide {
+  width: 100%;
+  margin-top: 12px;
+}
+
 .preview { margin-top: 18px; }
 .preview img { width: 100%; border-radius: 6px; border: 1px solid var(--border); display: block; }
 .preview .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }

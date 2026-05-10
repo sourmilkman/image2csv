@@ -7,7 +7,7 @@ const DB_NAME = 'image2csv';
 const STORE = 'handles';
 const KEY = 'siteRoot';
 const CSV_REL = ['public', 'data', 'artworks.csv'];
-const ART_REL = ['public', 'images', 'artwork'];
+const ART_ROOT_REL = ['public', 'images', 'artwork'];
 
 const HEADERS: (keyof Row)[] = [
   'title','image','category','medium','size','year','status','price','featured','visible'
@@ -78,8 +78,39 @@ async function getCsvFile(root: FileSystemDirectoryHandle, create = false) {
   return dir.getFileHandle(CSV_REL[CSV_REL.length - 1], { create });
 }
 
-async function getArtDir(root: FileSystemDirectoryHandle, create = false) {
-  return getDir(root, ART_REL, create);
+async function getArtRootDir(root: FileSystemDirectoryHandle, create = false) {
+  return getDir(root, ART_ROOT_REL, create);
+}
+
+export function artworkFolderForCategory(category: string): string {
+  const normalized = category.trim().toLowerCase();
+  if (normalized === 'still-life' || normalized === 'still life' || normalized === 'still-lifes') return 'still-lifes';
+  if (normalized === 'miniatures') return 'miniatures';
+  return 'portraits';
+}
+
+export function artworkImagePath(category: string, filename: string): string {
+  return `/images/artwork/${artworkFolderForCategory(category)}/${filename}`;
+}
+
+function imagePathParts(imagePathOrFilename: string): string[] {
+  const clean = imagePathOrFilename.replace(/^\/+/, '');
+  const parts = clean.split('/').filter(Boolean);
+  const artworkIndex = parts.findIndex((part) => part === 'artwork');
+  return artworkIndex >= 0 ? parts.slice(artworkIndex + 1) : parts;
+}
+
+async function getImageFile(root: FileSystemDirectoryHandle, imagePathOrFilename: string, create = false) {
+  const parts = imagePathParts(imagePathOrFilename);
+  const filename = parts[parts.length - 1] ?? '';
+  if (!/^[a-z0-9-]+\.webp$/i.test(filename)) throw new Error('Invalid filename');
+
+  const dirParts = parts.length > 1 ? parts.slice(0, -1) : [];
+  const dir = dirParts.length
+    ? await getDir(await getArtRootDir(root, create), dirParts, create)
+    : await getArtRootDir(root, create);
+
+  return dir.getFileHandle(filename, { create });
 }
 
 // ---- CSV ----
@@ -146,27 +177,29 @@ export async function writeCsv(root: FileSystemDirectoryHandle, rows: Row[]): Pr
 
 // ---- Images ----
 
-export async function writeImage(root: FileSystemDirectoryHandle, filename: string, blob: Blob): Promise<void> {
-  if (!/^[a-z0-9-]+\.webp$/i.test(filename)) throw new Error('Invalid filename');
-  const dir = await getArtDir(root, true);
-  const fh = await dir.getFileHandle(filename, { create: true });
+export async function writeImage(root: FileSystemDirectoryHandle, imagePath: string, blob: Blob): Promise<void> {
+  const fh = await getImageFile(root, imagePath, true);
   const w = await fh.createWritable();
   await w.write(blob);
   await w.close();
 }
 
-export async function deleteImage(root: FileSystemDirectoryHandle, filename: string): Promise<void> {
-  if (!/^[a-z0-9-]+\.webp$/i.test(filename)) return;
+export async function deleteImage(root: FileSystemDirectoryHandle, imagePath: string): Promise<void> {
   try {
-    const dir = await getArtDir(root, false);
+    const parts = imagePathParts(imagePath);
+    const filename = parts[parts.length - 1] ?? '';
+    if (!/^[a-z0-9-]+\.webp$/i.test(filename)) return;
+    const dirParts = parts.length > 1 ? parts.slice(0, -1) : [];
+    const dir = dirParts.length
+      ? await getDir(await getArtRootDir(root, false), dirParts, false)
+      : await getArtRootDir(root, false);
     await dir.removeEntry(filename);
   } catch { /* fine if missing */ }
 }
 
-export async function readImageUrl(root: FileSystemDirectoryHandle, filename: string): Promise<string> {
+export async function readImageUrl(root: FileSystemDirectoryHandle, imagePath: string): Promise<string> {
   try {
-    const dir = await getArtDir(root, false);
-    const fh = await dir.getFileHandle(filename, { create: false });
+    const fh = await getImageFile(root, imagePath, false);
     const file = await fh.getFile();
     return URL.createObjectURL(file);
   } catch {
@@ -174,10 +207,9 @@ export async function readImageUrl(root: FileSystemDirectoryHandle, filename: st
   }
 }
 
-export async function readImageBlob(root: FileSystemDirectoryHandle, filename: string): Promise<Blob | null> {
+export async function readImageBlob(root: FileSystemDirectoryHandle, imagePath: string): Promise<Blob | null> {
   try {
-    const dir = await getArtDir(root, false);
-    const fh = await dir.getFileHandle(filename, { create: false });
+    const fh = await getImageFile(root, imagePath, false);
     return await fh.getFile();
   } catch { return null; }
 }
