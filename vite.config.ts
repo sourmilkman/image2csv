@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 // Repo: https://github.com/sourmilkman/image2csv
 // GitHub Pages serves at https://sourmilkman.github.io/image2csv/
 export default defineConfig({
   base: '/image2csv/',
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version)
+  },
   plugins: [
     react(),
     VitePWA({

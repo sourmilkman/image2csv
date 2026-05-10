@@ -214,7 +214,7 @@ export default function App() {
   if (!isFsaSupported()) {
     return (
       <div className="app">
-        <header className="topbar"><h1>Image <span>2</span> CSV</h1></header>
+        <header className="topbar"><h1>Image <span>2</span> CSV <small>v{__APP_VERSION__}</small></h1></header>
         <div style={{ padding: 40, maxWidth: 600, margin: '0 auto' }}>
           <div className="empty">
             This app needs the File System Access API. Open it in <strong>Chrome</strong>,{' '}
@@ -228,7 +228,7 @@ export default function App() {
   if (needsPick) {
     return (
       <div className="app">
-        <header className="topbar"><h1>Image <span>2</span> CSV</h1></header>
+        <header className="topbar"><h1>Image <span>2</span> CSV <small>v{__APP_VERSION__}</small></h1></header>
         <div style={{ padding: 60, maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: 'Georgia, serif', fontWeight: 400, fontSize: 28, marginBottom: 14 }}>
             Pick your site folder
@@ -249,7 +249,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Image <span>2</span> CSV</h1>
+        <h1>Image <span>2</span> CSV <small>v{__APP_VERSION__}</small></h1>
         <div className={`status ${loading ? '' : 'ok'}`}>
           {loading ? 'Loading…' : `${rows.length} artworks`}
           {' · '}<button className="ghost" style={{ padding: '4px 10px', fontSize: 10 }} onClick={pick}>Change folder</button>
