@@ -7,6 +7,24 @@ import {
 } from './fs';
 
 type Toast = { kind: 'ok' | 'err'; msg: string } | null;
+type SortKey = 'title' | 'category' | 'medium' | 'year' | 'status' | 'flags';
+type SortState = { key: SortKey; direction: 'asc' | 'desc' };
+
+const statusRank = (status: string) => {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === 'available') return 0;
+  if (normalized === 'sold') return 1;
+  return 2;
+};
+
+const hasFlags = (row: Row) => row.featured === 'TRUE' || row.visible !== 'TRUE';
+
+const sortValue = (row: Row, key: SortKey) => {
+  if (key === 'year') return Number.parseInt(row.year, 10) || 0;
+  if (key === 'status') return statusRank(row.status);
+  if (key === 'flags') return hasFlags(row) ? 0 : 1;
+  return row[key].trim().toLowerCase();
+};
 
 export default function App() {
   const [root, setRoot] = useState<FileSystemDirectoryHandle | null>(null);
@@ -16,6 +34,7 @@ export default function App() {
   const [toast, setToast] = useState<Toast>(null);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
+  const [sort, setSort] = useState<SortState>({ key: 'title', direction: 'asc' });
 
   const [editing, setEditing] = useState<Row>({ ...EMPTY_ROW });
   const [defaults, setDefaults] = useState<Row>({ ...EMPTY_ROW });
@@ -203,13 +222,29 @@ export default function App() {
     showToast('ok', 'Defaults applied');
   }
 
+  function toggleSort(key: SortKey) {
+    setSort(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return rows.map((r, i) => ({ r, i })).filter(({ r }) =>
+    const filteredRows = rows.map((r, i) => ({ r, i })).filter(({ r }) =>
       (!filterCat || r.category === filterCat) &&
       (!q || r.title.toLowerCase().includes(q) || r.medium.toLowerCase().includes(q))
     );
-  }, [rows, search, filterCat]);
+
+    return filteredRows.sort((a, b) => {
+      const av = sortValue(a.r, sort.key);
+      const bv = sortValue(b.r, sort.key);
+      const result = typeof av === 'number' && typeof bv === 'number'
+        ? av - bv
+        : String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return sort.direction === 'asc' ? result : -result;
+    });
+  }, [rows, search, filterCat, sort]);
 
   if (!isFsaSupported()) {
     return (
@@ -283,30 +318,30 @@ export default function App() {
             <div className="field-row compact">
               <div className="field">
                 <label>Category</label>
-                <input list="d-category" value={defaults.category}
-                  onChange={e => setDefaults({ ...defaults, category: e.target.value })} />
+                <SuggestInput value={defaults.category} suggestions={sCategory}
+                  onChange={value => setDefaults({ ...defaults, category: value })} />
               </div>
               <div className="field">
                 <label>Status</label>
-                <input list="d-status" value={defaults.status}
-                  onChange={e => setDefaults({ ...defaults, status: e.target.value })} />
+                <SuggestInput value={defaults.status} suggestions={sStatus}
+                  onChange={value => setDefaults({ ...defaults, status: value })} />
               </div>
             </div>
             <div className="field">
               <label>Medium</label>
-              <input list="d-medium" value={defaults.medium}
-                onChange={e => setDefaults({ ...defaults, medium: e.target.value })} />
+              <SuggestInput value={defaults.medium} suggestions={sMedium}
+                onChange={value => setDefaults({ ...defaults, medium: value })} />
             </div>
             <div className="field-row compact">
               <div className="field">
                 <label>Size</label>
-                <input list="d-size" value={defaults.size}
-                  onChange={e => setDefaults({ ...defaults, size: e.target.value })} />
+                <SuggestInput value={defaults.size} suggestions={sSize}
+                  onChange={value => setDefaults({ ...defaults, size: value })} />
               </div>
               <div className="field">
                 <label>Year</label>
-                <input list="d-year" value={defaults.year}
-                  onChange={e => setDefaults({ ...defaults, year: e.target.value })} />
+                <SuggestInput value={defaults.year} suggestions={sYear}
+                  onChange={value => setDefaults({ ...defaults, year: value })} />
               </div>
             </div>
             <div className="checks">
@@ -345,45 +380,39 @@ export default function App() {
           <div className="field-row">
             <div className="field">
               <label>Category <span className="req">*</span></label>
-              <input list="d-category" value={editing.category}
-                onChange={e => setEditing({ ...editing, category: e.target.value })} />
-              <datalist id="d-category">{sCategory.map(v => <option key={v} value={v} />)}</datalist>
+              <SuggestInput value={editing.category} suggestions={sCategory}
+                onChange={value => setEditing({ ...editing, category: value })} />
             </div>
             <div className="field">
               <label>Status <span className="req">*</span></label>
-              <input list="d-status" value={editing.status}
-                onChange={e => setEditing({ ...editing, status: e.target.value })} />
-              <datalist id="d-status">{sStatus.map(v => <option key={v} value={v} />)}</datalist>
+              <SuggestInput value={editing.status} suggestions={sStatus}
+                onChange={value => setEditing({ ...editing, status: value })} />
             </div>
           </div>
 
           <div className="field">
             <label>Medium <span className="req">*</span></label>
-            <input list="d-medium" value={editing.medium}
-              onChange={e => setEditing({ ...editing, medium: e.target.value })} />
-            <datalist id="d-medium">{sMedium.map(v => <option key={v} value={v} />)}</datalist>
+            <SuggestInput value={editing.medium} suggestions={sMedium}
+              onChange={value => setEditing({ ...editing, medium: value })} />
           </div>
 
           <div className="field-row">
             <div className="field">
               <label>Size</label>
-              <input list="d-size" value={editing.size}
-                onChange={e => setEditing({ ...editing, size: e.target.value })} />
-              <datalist id="d-size">{sSize.map(v => <option key={v} value={v} />)}</datalist>
+              <SuggestInput value={editing.size} suggestions={sSize}
+                onChange={value => setEditing({ ...editing, size: value })} />
             </div>
             <div className="field">
               <label>Year</label>
-              <input list="d-year" value={editing.year}
-                onChange={e => setEditing({ ...editing, year: e.target.value })} />
-              <datalist id="d-year">{sYear.map(v => <option key={v} value={v} />)}</datalist>
+              <SuggestInput value={editing.year} suggestions={sYear}
+                onChange={value => setEditing({ ...editing, year: value })} />
             </div>
           </div>
 
           <div className="field">
             <label>Price</label>
-            <input list="d-price" value={editing.price}
-              onChange={e => setEditing({ ...editing, price: e.target.value })} />
-            <datalist id="d-price">{sPrice.map(v => <option key={v} value={v} />)}</datalist>
+            <SuggestInput value={editing.price} suggestions={sPrice}
+              onChange={value => setEditing({ ...editing, price: value })} />
           </div>
 
           <div className="checks">
@@ -425,8 +454,14 @@ export default function App() {
             <table>
               <thead>
                 <tr>
-                  <th></th><th>Title</th><th>Category</th><th>Medium</th>
-                  <th>Year</th><th>Status</th><th>Flags</th><th></th>
+                  <th></th>
+                  <SortHeader label="Title" sortKey="title" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Medium" sortKey="medium" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Year" sortKey="year" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Flags" sortKey="flags" sort={sort} onSort={toggleSort} />
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -472,5 +507,79 @@ function RowItem({ r, idx, selected, thumbFor, onEdit, onDelete }: {
         </div>
       </td>
     </tr>
+  );
+}
+
+function SortHeader({ label, sortKey, sort, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const direction = active ? (sort.direction === 'asc' ? 'ASC' : 'DESC') : 'SORT';
+
+  return (
+    <th>
+      <button type="button" className={`sort-button ${active ? 'active' : ''}`} onClick={() => onSort(sortKey)}>
+        {label}<span>{direction}</span>
+      </button>
+    </th>
+  );
+}
+
+function SuggestInput({ value, suggestions, onChange }: {
+  value: string;
+  suggestions: string[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const cleanSuggestions = useMemo(
+    () => suggestions.filter(Boolean).filter((item, index, all) => all.indexOf(item) === index),
+    [suggestions]
+  );
+
+  return (
+    <div className="suggest-wrap">
+      <input
+        value={value}
+        onFocus={event => {
+          event.currentTarget.select();
+          setFocused(true);
+          setOpen(true);
+        }}
+        onBlur={() => {
+          setFocused(false);
+          window.setTimeout(() => setOpen(false), 120);
+        }}
+        onChange={event => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+      />
+      <button type="button" className="suggest-toggle" onMouseDown={event => event.preventDefault()} onClick={() => setOpen(current => !current)}>
+        v
+      </button>
+      {open && cleanSuggestions.length > 0 && (
+        <div className="suggest-menu">
+          {cleanSuggestions.map(option => (
+            <button
+              key={option}
+              type="button"
+              className={option === value ? 'selected' : ''}
+              onMouseDown={event => event.preventDefault()}
+              onClick={() => {
+                onChange(option);
+                setOpen(false);
+              }}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+      {focused && <span className="suggest-hint">Type to replace, or choose below</span>}
+    </div>
   );
 }
