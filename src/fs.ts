@@ -73,6 +73,34 @@ async function getDir(root: FileSystemDirectoryHandle, parts: string[], create =
   return h;
 }
 
+export function friendlyFileSystemError(error: unknown): string {
+  const name = String((error as any)?.name ?? '');
+  const message = String((error as any)?.message ?? error ?? '');
+  const lowerMessage = message.toLowerCase();
+
+  if (
+    name === 'InvalidStateError' ||
+    lowerMessage.includes('state cached in an interface object') ||
+    lowerMessage.includes('state had changed since it was read from disk')
+  ) {
+    return [
+      'The selected site folder changed while Image2CSV was open.',
+      'Click "Change folder", choose the tommulliner.com folder again, then save once more.',
+      'Your current form values have been kept.'
+    ].join(' ');
+  }
+
+  if (name === 'NotAllowedError') {
+    return 'Image2CSV needs permission to edit the selected site folder. Click "Change folder" and allow file access again.';
+  }
+
+  if (name === 'NotFoundError') {
+    return 'Image2CSV could not find that file or folder. Click "Change folder" and select the tommulliner.com project root again.';
+  }
+
+  return message || 'Something went wrong while reading or writing the site files.';
+}
+
 async function getCsvFile(root: FileSystemDirectoryHandle, create = false) {
   const dir = await getDir(root, CSV_REL.slice(0, -1), create);
   return dir.getFileHandle(CSV_REL[CSV_REL.length - 1], { create });
@@ -99,7 +127,9 @@ function imagePathParts(imagePathOrFilename: string): string[] {
   const clean = imagePathOrFilename.replace(/^\/+/, '');
   const parts = clean.split('/').filter(Boolean);
   const artworkIndex = parts.findIndex((part) => part === 'artwork');
-  return artworkIndex >= 0 ? parts.slice(artworkIndex + 1) : parts;
+  const relParts = artworkIndex >= 0 ? parts.slice(artworkIndex + 1) : parts;
+  if (relParts.length > 1) relParts[0] = artworkFolderForCategory(relParts[0]);
+  return relParts;
 }
 
 async function getImageFile(root: FileSystemDirectoryHandle, imagePathOrFilename: string, create = false) {

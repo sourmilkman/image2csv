@@ -3,7 +3,8 @@ import { Row, EMPTY_ROW, SEED, suggestionsFor } from './types';
 import { fileToWebp, parseArtworkFilename, slugify } from './lib';
 import {
   isFsaSupported, pickRoot, getStoredRoot, ensurePermission,
-  readCsv, writeCsv, writeImage, deleteImage, readImageUrl, readImageBlob, artworkImagePath
+  readCsv, writeCsv, writeImage, deleteImage, readImageUrl, readImageBlob,
+  artworkImagePath, friendlyFileSystemError
 } from './fs';
 
 type Toast = { kind: 'ok' | 'err'; msg: string } | null;
@@ -66,7 +67,7 @@ export default function App() {
 
   async function load(r: FileSystemDirectoryHandle) {
     try { setLoading(true); setRows(await readCsv(r)); }
-    catch (e: any) { showToast('err', e.message); }
+    catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
     finally { setLoading(false); }
   }
 
@@ -77,7 +78,7 @@ export default function App() {
       if (!ok) return showToast('err', 'Permission denied');
       setRoot(h); setNeedsPick(false);
     } catch (e: any) {
-      if (e.name !== 'AbortError') showToast('err', e.message);
+      if (e.name !== 'AbortError') showToast('err', friendlyFileSystemError(e));
     }
   }
 
@@ -115,7 +116,7 @@ export default function App() {
         visible: parsed.visible ?? defaults.visible,
         title: parsed.title ?? e.title
       }));
-    } catch (e: any) { showToast('err', e.message); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
     finally { setBusy(false); }
   }
 
@@ -188,7 +189,7 @@ export default function App() {
       thumbCache.current.delete(imagePath);
       showToast('ok', editingIndex === null ? 'Added' : 'Updated');
       clearForm();
-    } catch (e: any) { showToast('err', e.message); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
     finally { setBusy(false); }
   }
 
@@ -205,7 +206,7 @@ export default function App() {
       thumbCache.current.delete(imagePath);
       if (editingIndex === idx) clearForm();
       showToast('ok', 'Deleted');
-    } catch (e: any) { showToast('err', e.message); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
     finally { setBusy(false); }
   }
 
