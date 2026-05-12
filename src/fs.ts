@@ -83,9 +83,11 @@ async function getArtRootDir(root: FileSystemDirectoryHandle, create = false) {
 }
 
 export function artworkFolderForCategory(category: string): string {
-  const normalized = category.trim().toLowerCase();
+  const normalized = category.trim().toLowerCase().replace(/[_\s]+/g, '-');
+  if (normalized === 'atelier' || normalized === 'atelier-mulliner' || normalized === 'ateliermulliner') return 'atelier-mulliner';
   if (normalized === 'still-life' || normalized === 'still life' || normalized === 'still-lifes') return 'still-lifes';
-  if (normalized === 'miniatures') return 'miniatures';
+  if (normalized === 'miniature' || normalized === 'miniatures') return 'miniatures';
+  if (normalized === 'portrait' || normalized === 'portraits') return 'portraits';
   return 'portraits';
 }
 

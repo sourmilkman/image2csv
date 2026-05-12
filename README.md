@@ -13,6 +13,7 @@ On first launch the app asks you to pick the `tommulliner.com` project root once
 - `public/images/artwork/portraits/<slug>.webp`
 - `public/images/artwork/miniatures/<slug>.webp`
 - `public/images/artwork/still-lifes/<slug>.webp`
+- `public/images/artwork/atelier-mulliner/<slug>.webp`
 
 …directly via the File System Access API. Nothing leaves your machine.
 
@@ -22,7 +23,7 @@ On first launch the app asks you to pick the `tommulliner.com` project root once
 - Slug-based filenames derived from the title
 - Images are saved into the folder derived from the artwork category
 - Quick import defaults for category, medium, status, size, year, featured, and visible
-- Smart filename parsing, for example `Arthur--portraits--charcoal--2019--sold--featured.jpg`
+- Smart filename parsing, for example `Arnolfini Portrait--atelier--oil--2026--available.jpg`
 - Edit / delete existing rows; image file is renamed when title changes
 - Datalist suggestions on every text field, populated from previous CSV entries
 - Required: title, category, medium, status, featured, visible. Year defaults to current; size/price optional

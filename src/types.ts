@@ -20,7 +20,7 @@ export const EMPTY_ROW: Row = {
 // Seed values — used only when CSV is empty. Otherwise dropdowns derive from
 // previously-entered data so they grow naturally with the catalogue.
 export const SEED = {
-  categories: ['portraits', 'still-life', 'miniatures'],
+  categories: ['portraits', 'still-life', 'miniatures', 'atelier-mulliner'],
   mediums:    ['Charcoal on paper', 'Pastel on paper', 'Oil on panel'],
   statuses:   ['available', 'sold']
 };

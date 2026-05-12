@@ -272,7 +272,8 @@ export default function App() {
             Select the <code>tommulliner.com</code> project root.<br />
             The app will read and write <code>public/data/artworks.csv</code> and
             files in <code>public/images/artwork/portraits</code>,{' '}
-            <code>miniatures</code>, and <code>still-lifes</code>.
+            <code>miniatures</code>, <code>still-lifes</code>, and{' '}
+            <code>atelier-mulliner</code>.
             Your choice is remembered.
           </p>
           <button onClick={pick}>Choose Folder</button>
@@ -313,7 +314,7 @@ export default function App() {
             <div className="quick-title">Quick import defaults</div>
             <p>
               Use these once for a batch, or name files like{' '}
-              <code>Arthur--portraits--charcoal--2019--sold--featured.jpg</code>.
+              <code>Arnolfini Portrait--atelier--oil--2026--available.jpg</code>.
             </p>
             <div className="field-row compact">
               <div className="field">

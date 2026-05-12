@@ -39,6 +39,7 @@ export function parseArtworkFilename(filename: string) {
     if (['portrait', 'portraits'].includes(token)) parsed.category = 'portraits';
     else if (['miniature', 'miniatures'].includes(token)) parsed.category = 'miniatures';
     else if (['still-life', 'still-lifes', 'stilllife'].includes(token)) parsed.category = 'still-life';
+    else if (['atelier', 'atelier-mulliner', 'ateliermulliner'].includes(token)) parsed.category = 'atelier-mulliner';
     else if (['available', 'sold'].includes(token)) parsed.status = token;
     else if (['featured', 'feature', 'feat'].includes(token)) parsed.featured = 'TRUE';
     else if (['hidden', 'hide'].includes(token)) parsed.visible = 'FALSE';
