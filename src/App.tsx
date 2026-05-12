@@ -67,7 +67,7 @@ export default function App() {
 
   async function load(r: FileSystemDirectoryHandle) {
     try { setLoading(true); setRows(await readCsv(r)); }
-    catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
+    catch (e: any) { showToast('err', friendlyFileSystemError(e, 'loading the CSV')); }
     finally { setLoading(false); }
   }
 
@@ -78,7 +78,7 @@ export default function App() {
       if (!ok) return showToast('err', 'Permission denied');
       setRoot(h); setNeedsPick(false);
     } catch (e: any) {
-      if (e.name !== 'AbortError') showToast('err', friendlyFileSystemError(e));
+      if (e.name !== 'AbortError') showToast('err', friendlyFileSystemError(e, 'opening the site folder'));
     }
   }
 
@@ -116,7 +116,7 @@ export default function App() {
         visible: parsed.visible ?? defaults.visible,
         title: parsed.title ?? e.title
       }));
-    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e, 'preparing the image')); }
     finally { setBusy(false); }
   }
 
@@ -189,7 +189,7 @@ export default function App() {
       thumbCache.current.delete(imagePath);
       showToast('ok', editingIndex === null ? 'Added' : 'Updated');
       clearForm();
-    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e, 'saving the artwork')); }
     finally { setBusy(false); }
   }
 
@@ -206,7 +206,7 @@ export default function App() {
       thumbCache.current.delete(imagePath);
       if (editingIndex === idx) clearForm();
       showToast('ok', 'Deleted');
-    } catch (e: any) { showToast('err', friendlyFileSystemError(e)); }
+    } catch (e: any) { showToast('err', friendlyFileSystemError(e, 'deleting the artwork')); }
     finally { setBusy(false); }
   }
 

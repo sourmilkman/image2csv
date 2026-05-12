@@ -73,7 +73,7 @@ async function getDir(root: FileSystemDirectoryHandle, parts: string[], create =
   return h;
 }
 
-export function friendlyFileSystemError(error: unknown): string {
+export function friendlyFileSystemError(error: unknown, action = 'reading or writing the site files'): string {
   const name = String((error as any)?.name ?? '');
   const message = String((error as any)?.message ?? error ?? '');
   const lowerMessage = message.toLowerCase();
@@ -84,9 +84,9 @@ export function friendlyFileSystemError(error: unknown): string {
     lowerMessage.includes('state had changed since it was read from disk')
   ) {
     return [
-      'The selected site folder changed while Image2CSV was open.',
-      'Click "Change folder", choose the tommulliner.com folder again, then save once more.',
-      'Your current form values have been kept.'
+      `Image2CSV hit a Windows/browser file-cache problem while ${action}.`,
+      'Close any Explorer preview/editor using the CSV or image, then click "Change folder", choose tommulliner.com again, and save once more.',
+      'Your current form values have been kept. If this keeps happening, restart Chrome or Edge to clear the cached file handle.'
     ].join(' ');
   }
 
@@ -99,6 +99,17 @@ export function friendlyFileSystemError(error: unknown): string {
   }
 
   return message || 'Something went wrong while reading or writing the site files.';
+}
+
+async function writeHandle(fileHandle: FileSystemFileHandle, contents: string | Blob): Promise<void> {
+  const writable = await fileHandle.createWritable({ keepExistingData: false });
+  try {
+    await writable.write(contents);
+    await writable.close();
+  } catch (error) {
+    try { await writable.abort(); } catch { /* already closed or aborted */ }
+    throw error;
+  }
 }
 
 async function getCsvFile(root: FileSystemDirectoryHandle, create = false) {
@@ -201,19 +212,60 @@ export async function readCsv(root: FileSystemDirectoryHandle): Promise<Row[]> {
 }
 
 export async function writeCsv(root: FileSystemDirectoryHandle, rows: Row[]): Promise<void> {
-  const fh = await getCsvFile(root, true);
-  const w = await fh.createWritable();
-  await w.write(serializeCsv(rows));
-  await w.close();
+  const dir = await getDir(root, CSV_REL.slice(0, -1), true);
+  const filename = CSV_REL[CSV_REL.length - 1];
+  const contents = serializeCsv(rows);
+
+  try {
+    const fh = await dir.getFileHandle(filename, { create: true });
+    await writeHandle(fh, contents);
+  } catch (error) {
+    if (!isStaleHandleError(error)) throw error;
+
+    await removeEntryIfPresent(dir, filename);
+    const freshHandle = await dir.getFileHandle(filename, { create: true });
+    await writeHandle(freshHandle, contents);
+  }
 }
 
 // ---- Images ----
 
 export async function writeImage(root: FileSystemDirectoryHandle, imagePath: string, blob: Blob): Promise<void> {
-  const fh = await getImageFile(root, imagePath, true);
-  const w = await fh.createWritable();
-  await w.write(blob);
-  await w.close();
+  try {
+    const fh = await getImageFile(root, imagePath, true);
+    await writeHandle(fh, blob);
+  } catch (error) {
+    if (!isStaleHandleError(error)) throw error;
+
+    const parts = imagePathParts(imagePath);
+    const filename = parts[parts.length - 1] ?? '';
+    const dirParts = parts.length > 1 ? parts.slice(0, -1) : [];
+    const dir = dirParts.length
+      ? await getDir(await getArtRootDir(root, true), dirParts, true)
+      : await getArtRootDir(root, true);
+
+    await removeEntryIfPresent(dir, filename);
+    const freshHandle = await dir.getFileHandle(filename, { create: true });
+    await writeHandle(freshHandle, blob);
+  }
+}
+
+function isStaleHandleError(error: unknown): boolean {
+  const name = String((error as any)?.name ?? '');
+  const message = String((error as any)?.message ?? error ?? '').toLowerCase();
+  return (
+    name === 'InvalidStateError' ||
+    message.includes('state cached in an interface object') ||
+    message.includes('state had changed since it was read from disk')
+  );
+}
+
+async function removeEntryIfPresent(dir: FileSystemDirectoryHandle, filename: string): Promise<void> {
+  try {
+    await dir.removeEntry(filename);
+  } catch (error: any) {
+    if (error?.name !== 'NotFoundError') throw error;
+  }
 }
 
 export async function deleteImage(root: FileSystemDirectoryHandle, imagePath: string): Promise<void> {
