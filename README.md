@@ -17,6 +17,16 @@ On first launch the app asks you to pick the `tommulliner.com` project root once
 
 …directly via the File System Access API. Nothing leaves your machine.
 
+## Local Writer
+
+If Chrome or Edge keeps reporting a Windows/browser file-cache problem while saving, use the local writer instead:
+
+```bat
+start-image2csv-local.bat
+```
+
+That opens Image2CSV at `http://localhost:4177` and writes through Node directly to `G:\CODEX-APPS\tommulliner.com`, bypassing the browser file-handle cache entirely.
+
 ## Features
 
 - Drag-and-drop → auto WebP conversion (Canvas, max 2000px wide, q=0.85)
@@ -40,6 +50,7 @@ On first launch the app asks you to pick the `tommulliner.com` project root once
 npm install
 npm run icons     # one-time, generates PWA icons via sharp
 npm run dev       # http://localhost:5180
+npm run local     # build and run the local writer on http://localhost:4177
 ```
 
 ## Deployment

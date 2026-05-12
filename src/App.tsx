@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Row, EMPTY_ROW, SEED, suggestionsFor } from './types';
 import { fileToWebp, parseArtworkFilename, slugify } from './lib';
 import {
-  isFsaSupported, pickRoot, getStoredRoot, ensurePermission,
+  isFsaSupported, isLocalApiAvailable, localApiRoot, pickRoot, getStoredRoot, ensurePermission,
   readCsv, writeCsv, writeImage, deleteImage, readImageUrl, readImageBlob,
   artworkImagePath, friendlyFileSystemError
 } from './fs';
@@ -30,6 +30,7 @@ const sortValue = (row: Row, key: SortKey) => {
 export default function App() {
   const [root, setRoot] = useState<FileSystemDirectoryHandle | null>(null);
   const [needsPick, setNeedsPick] = useState(true);
+  const [localMode, setLocalMode] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
@@ -50,6 +51,13 @@ export default function App() {
 
   // Boot: try to recover stored handle
   useEffect(() => { (async () => {
+    if (await isLocalApiAvailable()) {
+      setLocalMode(true);
+      setRoot(localApiRoot());
+      setNeedsPick(false);
+      return;
+    }
+
     if (!isFsaSupported()) return;
     const stored = await getStoredRoot();
     if (stored) {
@@ -247,14 +255,14 @@ export default function App() {
     });
   }, [rows, search, filterCat, sort]);
 
-  if (!isFsaSupported()) {
+  if (!localMode && !isFsaSupported()) {
     return (
       <div className="app">
         <header className="topbar"><h1>Image <span>2</span> CSV <small>v{__APP_VERSION__}</small></h1></header>
         <div style={{ padding: 40, maxWidth: 600, margin: '0 auto' }}>
           <div className="empty">
             This app needs the File System Access API. Open it in <strong>Chrome</strong>,{' '}
-            <strong>Edge</strong>, or another Chromium browser.
+            <strong>Edge</strong>, or run the local Image2CSV launcher.
           </div>
         </div>
       </div>

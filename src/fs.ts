@@ -8,6 +8,7 @@ const STORE = 'handles';
 const KEY = 'siteRoot';
 const CSV_REL = ['public', 'data', 'artworks.csv'];
 const ART_ROOT_REL = ['public', 'images', 'artwork'];
+const LOCAL_API_ROOT = { __localApi: true } as unknown as FileSystemDirectoryHandle;
 
 const HEADERS: (keyof Row)[] = [
   'title','image','category','medium','size','year','status','price','featured','visible'
@@ -46,7 +47,25 @@ export function isFsaSupported(): boolean {
   return typeof (window as any).showDirectoryPicker === 'function';
 }
 
+export async function isLocalApiAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function localApiRoot(): FileSystemDirectoryHandle {
+  return LOCAL_API_ROOT;
+}
+
+function isLocalApiRoot(root: FileSystemDirectoryHandle): boolean {
+  return Boolean((root as any).__localApi);
+}
+
 export async function pickRoot(): Promise<FileSystemDirectoryHandle> {
+  if (await isLocalApiAvailable()) return localApiRoot();
   const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
   await idbSet(KEY, handle);
   return handle;
@@ -58,6 +77,7 @@ export async function getStoredRoot(): Promise<FileSystemDirectoryHandle | null>
 }
 
 export async function ensurePermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
+  if (isLocalApiRoot(handle)) return true;
   const opts = { mode: 'readwrite' as const };
   // @ts-ignore — types lag the spec
   if ((await handle.queryPermission?.(opts)) === 'granted') return true;
@@ -201,6 +221,12 @@ function serializeCsv(rows: Row[]): string {
 }
 
 export async function readCsv(root: FileSystemDirectoryHandle): Promise<Row[]> {
+  if (isLocalApiRoot(root)) {
+    const res = await fetch('/api/csv', { cache: 'no-store' });
+    if (!res.ok) throw new Error(await res.text());
+    return parseCsv(await res.text());
+  }
+
   try {
     const fh = await getCsvFile(root, false);
     const file = await fh.getFile();
@@ -212,6 +238,16 @@ export async function readCsv(root: FileSystemDirectoryHandle): Promise<Row[]> {
 }
 
 export async function writeCsv(root: FileSystemDirectoryHandle, rows: Row[]): Promise<void> {
+  if (isLocalApiRoot(root)) {
+    const res = await fetch('/api/csv', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/csv' },
+      body: serializeCsv(rows)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return;
+  }
+
   const dir = await getDir(root, CSV_REL.slice(0, -1), true);
   const filename = CSV_REL[CSV_REL.length - 1];
   const contents = serializeCsv(rows);
@@ -231,6 +267,16 @@ export async function writeCsv(root: FileSystemDirectoryHandle, rows: Row[]): Pr
 // ---- Images ----
 
 export async function writeImage(root: FileSystemDirectoryHandle, imagePath: string, blob: Blob): Promise<void> {
+  if (isLocalApiRoot(root)) {
+    const res = await fetch(`/api/image?path=${encodeURIComponent(imagePath)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/webp' },
+      body: blob
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return;
+  }
+
   try {
     const fh = await getImageFile(root, imagePath, true);
     await writeHandle(fh, blob);
@@ -269,6 +315,11 @@ async function removeEntryIfPresent(dir: FileSystemDirectoryHandle, filename: st
 }
 
 export async function deleteImage(root: FileSystemDirectoryHandle, imagePath: string): Promise<void> {
+  if (isLocalApiRoot(root)) {
+    await fetch(`/api/image?path=${encodeURIComponent(imagePath)}`, { method: 'DELETE' });
+    return;
+  }
+
   try {
     const parts = imagePathParts(imagePath);
     const filename = parts[parts.length - 1] ?? '';
@@ -282,6 +333,10 @@ export async function deleteImage(root: FileSystemDirectoryHandle, imagePath: st
 }
 
 export async function readImageUrl(root: FileSystemDirectoryHandle, imagePath: string): Promise<string> {
+  if (isLocalApiRoot(root)) {
+    return `/api/image?path=${encodeURIComponent(imagePath)}&v=${Date.now()}`;
+  }
+
   try {
     const fh = await getImageFile(root, imagePath, false);
     const file = await fh.getFile();
@@ -292,6 +347,11 @@ export async function readImageUrl(root: FileSystemDirectoryHandle, imagePath: s
 }
 
 export async function readImageBlob(root: FileSystemDirectoryHandle, imagePath: string): Promise<Blob | null> {
+  if (isLocalApiRoot(root)) {
+    const res = await fetch(`/api/image?path=${encodeURIComponent(imagePath)}`, { cache: 'no-store' });
+    return res.ok ? await res.blob() : null;
+  }
+
   try {
     const fh = await getImageFile(root, imagePath, false);
     return await fh.getFile();
